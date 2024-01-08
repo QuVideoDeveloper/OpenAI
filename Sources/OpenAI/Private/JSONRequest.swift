@@ -38,4 +38,14 @@ extension JSONRequest: URLRequestBuildable {
         }
         return request
     }
+    func build(apiKey: String, apiVersion: String, resourceName: String, deploymentID: String, timeoutInterval: TimeInterval) throws -> URLRequest {
+        var request = URLRequest(url: url, timeoutInterval: timeoutInterval)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "api-key")
+        request.httpMethod = method
+        if let body = body {
+            request.httpBody = try JSONEncoder().encode(body)
+        }
+        return request
+    }
 }

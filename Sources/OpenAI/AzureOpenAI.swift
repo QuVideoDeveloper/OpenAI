@@ -1,8 +1,8 @@
 //
-//  OpenAI.swift
+//  AzureOpenAI.swift
 //
 //
-//  Created by Sergii Kryvoblotskyi on 9/18/22.
+//  Created by xuxinyuan on 8/25/23.
 //
 
 import Foundation
@@ -10,25 +10,38 @@ import Foundation
 import FoundationNetworking
 #endif
 
-final public class OpenAI: OpenAIProtocol {
+final public class AzureOpenAI: OpenAIProtocol {
 
     public struct Configuration {
         
-        /// OpenAI API token. See https://platform.openai.com/docs/api-reference/authentication
-        public let token: String
+        /// Azure OpenAI API Key
+        public let apiKey: String
         
-        /// Optional OpenAI organization identifier. See https://platform.openai.com/docs/api-reference/authentication
-        public let organizationIdentifier: String?
+        /// Azure OpenAI API Version
+        public let apiVersion: String
         
-        /// API host. Set this property if you use some kind of proxy or your own server. Default is api.openai.com
+        /// Azure OpenAI  Resource Name
+        public let resourceName: String
+        
+        /// Azure OpenAI Deployment Name
+        public let deploymentName: String
+        
+        /// Azure OpenAI host
         public let host: String
         
         /// Default request timeout
         public let timeoutInterval: TimeInterval
         
-        public init(token: String, organizationIdentifier: String? = nil, host: String = "api.openai.com", timeoutInterval: TimeInterval = 60.0) {
-            self.token = token
-            self.organizationIdentifier = organizationIdentifier
+        public init(apiKey: String, 
+                    apiVersion: String = "2023-07-01-preview",
+                    resourceName: String,
+                    deploymentName: String,
+                    host: String = "openai.azure.com",
+                    timeoutInterval: TimeInterval = 60.0) {
+            self.apiKey = apiKey
+            self.apiVersion = apiVersion
+            self.resourceName = resourceName
+            self.deploymentName = deploymentName
             self.host = host
             self.timeoutInterval = timeoutInterval
         }
@@ -38,10 +51,6 @@ final public class OpenAI: OpenAIProtocol {
     private var streamingSessions: [NSObject] = []
     
     public let configuration: Configuration
-
-    public convenience init(apiToken: String) {
-        self.init(configuration: Configuration(token: apiToken), session: URLSession.shared)
-    }
     
     public convenience init(configuration: Configuration) {
         self.init(configuration: configuration, session: URLSession.shared)
@@ -105,11 +114,15 @@ final public class OpenAI: OpenAIProtocol {
     }
 }
 
-extension OpenAI {
+extension AzureOpenAI {
 
     func performRequest<ResultType: Codable>(request: any URLRequestBuildable, completion: @escaping (Result<ResultType, Error>) -> Void) {
         do {
-            let request = try request.build(token: configuration.token, organizationIdentifier: configuration.organizationIdentifier, timeoutInterval: configuration.timeoutInterval)
+            let request = try request.build(apiKey: configuration.apiKey,
+                                            apiVersion: configuration.apiVersion,
+                                            resourceName: configuration.resourceName,
+                                            deploymentID: configuration.deploymentName,
+                                            timeoutInterval: configuration.timeoutInterval)
             let task = session.dataTask(with: request) { data, _, error in
                 if let error = error {
                     completion(.failure(error))
@@ -145,7 +158,11 @@ extension OpenAI {
     
     func performSteamingRequest<ResultType: Codable>(request: any URLRequestBuildable, onResult: @escaping (Result<ResultType, Error>) -> Void, completion: ((Error?) -> Void)?) {
         do {
-            let request = try request.build(token: configuration.token, organizationIdentifier: configuration.organizationIdentifier, timeoutInterval: configuration.timeoutInterval)
+            let request = try request.build(apiKey: configuration.apiKey,
+                                            apiVersion: configuration.apiVersion,
+                                            resourceName: configuration.resourceName,
+                                            deploymentID: configuration.deploymentName,
+                                            timeoutInterval: configuration.timeoutInterval)
             let session = StreamingSession<ResultType>(urlRequest: request)
             session.onReceiveContent = {_, object in
                 onResult(.success(object))
@@ -165,30 +182,34 @@ extension OpenAI {
     }
 }
 
-extension OpenAI {
+extension AzureOpenAI {
     
     func buildURL(path: String) -> URL {
         var components = URLComponents()
         components.scheme = "https"
-        components.host = configuration.host
-        components.path = path
+        components.host = configuration.resourceName + "." + configuration.host
+        components.path = "/openai/deployments/" + configuration.deploymentName + path
+        // 设置查询参数
+        components.queryItems = [
+            URLQueryItem(name: "api-version", value: configuration.apiVersion)
+        ]
         return components.url!
     }
 }
 
 private typealias APIPath = String
-private extension APIPath {
+private extension String {
     
-    static let completions = "/v1/completions"
-    static let images = "/v1/images/generations"
-    static let embeddings = "/v1/embeddings"
-    static let chats = "/v1/chat/completions"
-    static let edits = "/v1/edits"
-    static let models = "/v1/models"
-    static let moderations = "/v1/moderations"
+    static let completions = "/completions"
+    static let images = "/images/generations"
+    static let embeddings = "/embeddings"
+    static let chats = "/chat/completions"
+    static let edits = "/edits"
+    static let models = "/models"
+    static let moderations = "/moderations"
     
-    static let audioTranscriptions = "/v1/audio/transcriptions"
-    static let audioTranslations = "/v1/audio/translations"
+    static let audioTranscriptions = "/audio/transcriptions"
+    static let audioTranslations = "/audio/translations"
     
     func withPath(_ path: String) -> String {
         self + "/" + path

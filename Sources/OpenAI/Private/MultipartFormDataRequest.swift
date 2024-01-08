@@ -38,4 +38,15 @@ extension MultipartFormDataRequest: URLRequestBuildable {
         request.httpBody = body.encode(boundary: boundary)
         return request
     }
+    
+    func build(apiKey: String, apiVersion: String, resourceName: String, deploymentID: String, timeoutInterval: TimeInterval) throws -> URLRequest {
+        var request = URLRequest(url: url)
+        let boundary: String = UUID().uuidString
+        request.timeoutInterval = timeoutInterval
+        request.httpMethod = method
+        request.setValue("api-key", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body.encode(boundary: boundary)
+        return request
+    }
 }
